@@ -14,6 +14,20 @@ export interface FeishuAdapterConfig {
  */
 export class FeishuAdapter implements IMAdapter {
   readonly name = 'feishu'
+
+  /** Test connection with given credentials. Throws on failure. */
+  static async testConnection(appId: string, appSecret: string): Promise<string> {
+    const res = await fetch('https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app_id: appId, app_secret: appSecret }),
+    })
+    const json = await res.json() as { code: number; msg?: string; tenant_access_token?: string }
+    if (json.code !== 0) {
+      throw new Error(json.msg ?? `error code ${json.code}`)
+    }
+    return appId
+  }
   private client: Lark.Client
   private wsClient: Lark.WSClient
   private messageHandler: ((msg: IncomingMessage) => Promise<void>) | null = null
@@ -64,33 +78,38 @@ export class FeishuAdapter implements IMAdapter {
   async start(): Promise<void> {
     // Long connection mode — Feishu's WebSocket-based persistent connection
     // No public IP or webhook server required
-    this.wsClient.start({
-      eventDispatcher: new Lark.EventDispatcher({}).register({
-        'im.message.receive_v1': async (data) => {
-          const msg = data.message
-          if (msg.message_type !== 'text') return
+    const eventDispatcher = new Lark.EventDispatcher({}).register({
+      'im.message.receive_v1': async (data) => {
+        // Debug: write to stderr to bypass console muting
+        process.stderr.write(`[Feishu] Event received: ${JSON.stringify(data).slice(0, 200)}\n`)
 
-          const userId = data.sender?.sender_id?.user_id ?? ''
-          if (!this.isAllowed(userId)) return
-          if (!this.messageHandler) return
+        const msg = data.message
+        if (msg.message_type !== 'text') return
 
-          let text = ''
-          try {
-            text = (JSON.parse(msg.content) as { text: string }).text
-          } catch {
-            return
-          }
+        const userId = data.sender?.sender_id?.user_id ?? ''
+        if (!this.isAllowed(userId)) return
+        if (!this.messageHandler) return
 
-          const incoming: IncomingMessage = {
-            platform: 'feishu',
-            chatId: msg.chat_id ?? '',
-            userId,
-            text,
-          }
-          await this.messageHandler(incoming)
-        },
-      }),
+        let text = ''
+        try {
+          text = (JSON.parse(msg.content) as { text: string }).text
+        } catch {
+          return
+        }
+
+        process.stderr.write(`[Feishu] Message from ${userId}: ${text}\n`)
+
+        const incoming: IncomingMessage = {
+          platform: 'feishu',
+          chatId: msg.chat_id ?? '',
+          userId,
+          text,
+        }
+        await this.messageHandler(incoming)
+      },
     })
+
+    this.wsClient.start({ eventDispatcher })
     console.log('[Feishu] Bot started (long connection)')
   }
 

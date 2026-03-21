@@ -7,6 +7,10 @@ export interface RemoteModeOptions {
   getNextMessage: () => Promise<string | null>
   onResponse: (text: string) => Promise<void>
   onThinking: () => Promise<void>
+  onStderr?: (text: string) => void
+  onTimeout?: () => void
+  /** Single execution timeout in ms (default: 5 minutes). Notifies only — does not kill the process. */
+  timeoutMs?: number
   signal: AbortSignal
 }
 
@@ -16,7 +20,7 @@ export interface RemoteModeOptions {
  * Returns 'switch' if aborted (user wants terminal back), 'exit' if no more messages.
  */
 export async function runRemoteMode(opts: RemoteModeOptions): Promise<'switch' | 'exit'> {
-  const { sessionId, projectPath, extraArgs, getNextMessage, onResponse, onThinking, signal } = opts
+  const { sessionId, projectPath, extraArgs, getNextMessage, onResponse, onThinking, onStderr, onTimeout, timeoutMs, signal } = opts
 
   while (!signal.aborted) {
     const message = await getNextMessage()
@@ -33,6 +37,9 @@ export async function runRemoteMode(opts: RemoteModeOptions): Promise<'switch' |
         projectPath,
         message,
         extraArgs,
+        onStderr,
+        onTimeout,
+        timeoutMs,
         signal,
       })
 
@@ -57,9 +64,12 @@ async function executeClaudeCommand(opts: {
   projectPath: string
   message: string
   extraArgs?: string[]
+  onStderr?: (text: string) => void
+  onTimeout?: () => void
+  timeoutMs?: number
   signal: AbortSignal
 }): Promise<string> {
-  const { sessionId, projectPath, message, extraArgs, signal } = opts
+  const { sessionId, projectPath, message, extraArgs, onStderr, onTimeout, timeoutMs, signal } = opts
 
   const args = [
     '-p', message,
@@ -72,10 +82,12 @@ async function executeClaudeCommand(opts: {
   return new Promise<string>((resolve, reject) => {
     let child: ChildProcess | null = null
     let resolved = false
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
 
     const onAbort = () => {
       if (resolved) return
       resolved = true
+      clearTimeout(timeoutId)
       if (child && !child.killed) {
         child.kill('SIGTERM')
         setTimeout(() => {
@@ -104,13 +116,22 @@ async function executeClaudeCommand(opts: {
       output += chunk.toString()
     })
 
-    child.stderr?.on('data', () => {
-      // Claude writes status info to stderr — ignore
+    child.stderr?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString().trim()
+      if (text && onStderr) onStderr(text)
     })
+
+    // Timeout notification — does NOT kill the process, just notifies
+    timeoutId = setTimeout(() => {
+      if (!resolved && onTimeout) {
+        onTimeout()
+      }
+    }, timeoutMs ?? 300_000) // default 5 minutes
 
     child.on('error', (err) => {
       if (resolved) return
       resolved = true
+      clearTimeout(timeoutId)
       signal.removeEventListener('abort', onAbort)
       reject(err)
     })
@@ -118,6 +139,7 @@ async function executeClaudeCommand(opts: {
     child.on('exit', (code) => {
       if (resolved) return
       resolved = true
+      clearTimeout(timeoutId)
       signal.removeEventListener('abort', onAbort)
       if (code !== 0 && code !== null) {
         reject(new Error(`claude exited with code ${code}`))

@@ -5,7 +5,7 @@ import type { IMAdapter } from '@kite/core'
 import { TelegramAdapter } from '@kite/telegram'
 import { FeishuAdapter } from '@kite/feishu'
 import { resolve, join } from 'node:path'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { spawn } from 'node:child_process'
 
@@ -38,6 +38,14 @@ function loadConfigEnv() {
 }
 
 loadConfigEnv()
+
+// ─── Handle `kite setup` subcommand ─────────────────────────────────────────
+
+if (process.argv[2] === 'setup') {
+  const { runSetup } = await import('./setup.js')
+  await runSetup()
+  process.exit(0)
+}
 
 // ─── Config from environment variables ────────────────────────────────────────
 
@@ -86,6 +94,14 @@ if (FEISHU_APP_ID && FEISHU_APP_SECRET) {
 }
 
 // ─── Launch ──────────────────────────────────────────────────────────────────
+
+// First-run detection: no config file + no env vars + no adapters
+const configFileExists = existsSync(join(homedir(), '.config', 'kite', '.env'))
+if (adapters.length === 0 && !configFileExists) {
+  console.log('\n  Welcome to Kite! No configuration found.')
+  console.log('  Run \x1b[1mkite setup\x1b[0m to get started.\n')
+  process.exit(0)
+}
 
 console.log(`[Kite] Starting kite — Claude Code with IM bridge`)
 console.log(`[Kite] Project path: ${PROJECT_PATH}`)

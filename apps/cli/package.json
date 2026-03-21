@@ -10,7 +10,8 @@
   "dependencies": {
     "@kite/core": "workspace:*",
     "@kite/telegram": "workspace:*",
-    "@kite/feishu": "workspace:*"
+    "@kite/feishu": "workspace:*",
+    "@clack/prompts": "^0.9"
   },
   "devDependencies": {
     "typescript": "^5.7.0"

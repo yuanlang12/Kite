@@ -237,6 +237,8 @@ export async function launch(opts: LauncherOptions): Promise<void> {
           messageQueue.unshift(msg)
           const chatKey = `${msg.adapter.name}:${msg.chatId}`
           subscribedChats.set(chatKey, { adapter: msg.adapter, chatId: msg.chatId })
+          // Notify IM user: switching to remote mode
+          msg.adapter.sendMessage(msg.chatId, '🪁 Switching to remote mode...').catch(() => {})
           localAbort.abort()
         })
 
@@ -347,13 +349,26 @@ export async function launch(opts: LauncherOptions): Promise<void> {
               await currentAdapter.sendTyping(currentChatId).catch(() => {})
             }
           },
+          onStderr: (text) => {
+            tui.addInfo(`stderr: ${text.slice(0, 120)}`)
+            if (currentAdapter && currentChatId) {
+              currentAdapter.sendMessage(currentChatId, `⚠️ ${text}`).catch(() => {})
+            }
+          },
+          onTimeout: () => {
+            tui.addInfo('Execution taking longer than expected...')
+            if (currentAdapter && currentChatId) {
+              currentAdapter.sendMessage(currentChatId, '⏳ Claude is still working — this is taking longer than expected...').catch(() => {})
+            }
+          },
           signal: remoteAbort.signal,
         })
 
         keyHandler.stop()
         tui.stop()
         unmuteConsole()
-        scannerForwardingEnabled = true
+        // Don't re-enable scanner forwarding — user is back at the terminal and can see output directly
+        scannerForwardingEnabled = false
 
         if (result === 'exit') break
 

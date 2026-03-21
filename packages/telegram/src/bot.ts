@@ -10,6 +10,13 @@ export interface TelegramAdapterConfig {
 
 export class TelegramAdapter implements IMAdapter {
   readonly name = 'telegram'
+
+  /** Test connection with given token. Returns bot username on success. */
+  static async testConnection(token: string): Promise<string> {
+    const bot = new Bot(token)
+    const me = await bot.api.getMe()
+    return me.username ?? me.first_name
+  }
   private bot: Bot
   private messageHandler: ((msg: IncomingMessage) => Promise<void>) | null = null
   private readonly gate: AccessGate
