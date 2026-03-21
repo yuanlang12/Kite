@@ -377,6 +377,9 @@ export async function launch(opts: LauncherOptions): Promise<void> {
     }
   } finally {
     await cleanup()
+    // Force exit — third-party SDKs (Feishu WSClient, grammy polling, chokidar)
+    // keep handles open that prevent Node from exiting gracefully.
+    process.exit(0)
   }
 }
 
