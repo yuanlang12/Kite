@@ -1,0 +1,18 @@
+{
+  "name": "@kite/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kite/core": "workspace:*",
+    "@kite/telegram": "workspace:*",
+    "@kite/feishu": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
