@@ -62,9 +62,10 @@ export class RemoteTUI {
   }
 
   private log(icon: string, text: string) {
+    const sanitized = text.replace(/[\n\r]/g, ' ')
     const now = new Date()
     const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
-    this.logs.push({ time, icon, text })
+    this.logs.push({ time, icon, text: sanitized })
     if (this.logs.length > this.maxLogs) this.logs.shift()
     if (this.isActive) this.render()
   }
@@ -94,11 +95,11 @@ export class RemoteTUI {
     const B = `${DIM}░${RESET}`
     const pad = ' '.repeat(sp)
 
-    // Fixed rows: top(5) + bottom(6) + chin(3) = 14
+    // Fixed rows: top(5) + bottom(4) + chin(6) = 15
     // top: casing + bezel + screen border + title + separator = 5
     // bottom: footer sep + footer + screen border + bezel = 4
-    // chin: padding + logo + casing bottom = 3
-    const chinHeight = 3
+    // chin: bezel + logo×3 + blank + casing bottom = 6
+    const chinHeight = 6
     const fixedRows = 5 + 4 + chinHeight
     const screenHeight = Math.max(1, rows - fixedRows)
 
@@ -146,12 +147,20 @@ export class RemoteTUI {
     lines.push(`${C}${pad}${B}${BOLD}└${'─'.repeat(screenW)}┘${RESET}${B}${pad}${C}`)
     lines.push(`${C}${pad}${B.repeat(bezelW)}${pad}${C}`)
 
-    // ── Chin: compact logo ──
-    const logo = `${MAGENTA}◉  K ─ I ─ T ─ E${RESET}`
-    const logoW = displayWidth('◉  K ─ I ─ T ─ E')
-    const logoL = Math.floor((cols - 2 - logoW) / 2)
-    const logoR = cols - 2 - logoW - logoL
-    lines.push(`${C}${' '.repeat(Math.max(0, logoL))}${logo}${' '.repeat(Math.max(0, logoR))}${C}`)
+    // ── Chin: large ASCII art logo ──
+    lines.push(`${C}${pad}${B.repeat(bezelW)}${pad}${C}`)
+    lines.push(`${C}${' '.repeat(cols - 2)}${C}`)
+    const logoLines = [
+      '╦╔═  ╦  ╔╦╗  ╔═╗',
+      '╠╩╗  ║   ║   ╠╡',
+      '╩ ╩  ╩   ╩   ╚═╝',
+    ]
+    for (const ll of logoLines) {
+      const llW = displayWidth(ll)
+      const llL = Math.floor((cols - 2 - llW) / 2)
+      const llR = cols - 2 - llW - llL
+      lines.push(`${C}${' '.repeat(Math.max(0, llL))}${MAGENTA}${ll}${RESET}${' '.repeat(Math.max(0, llR))}${C}`)
+    }
 
     // ── Casing bottom ──
     lines.push(`${GRAY}╚${'═'.repeat(cols - 2)}╝${RESET}`)

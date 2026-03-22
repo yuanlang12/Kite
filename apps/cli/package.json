@@ -8,12 +8,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clack/prompts": "^0.9",
     "@kite/core": "workspace:*",
-    "@kite/telegram": "workspace:*",
     "@kite/feishu": "workspace:*",
-    "@clack/prompts": "^0.9"
+    "@kite/telegram": "workspace:*",
+    "@kite/weixin": "workspace:*",
+    "@kite/wecom": "workspace:*",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "typescript": "^5.7.0"
   }
 }

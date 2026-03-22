@@ -4,6 +4,8 @@ import { launch } from '@kite/core'
 import type { IMAdapter } from '@kite/core'
 import { TelegramAdapter } from '@kite/telegram'
 import { FeishuAdapter } from '@kite/feishu'
+import { WeixinAdapter } from '@kite/weixin'
+import { WecomAdapter } from '@kite/wecom'
 import { resolve, join } from 'node:path'
 import { readFileSync, existsSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -62,6 +64,16 @@ const FEISHU_APP_SECRET = process.env.FEISHU_APP_SECRET
 const FEISHU_ALLOWED = (process.env.FEISHU_ALLOWED_USER_IDS ?? '')
   .split(',').map(s => s.trim()).filter(Boolean)
 
+const WEIXIN_TOKEN = process.env.WEIXIN_BOT_TOKEN
+const WEIXIN_BASE_URL = process.env.WEIXIN_BASE_URL
+const WEIXIN_ALLOWED = (process.env.WEIXIN_ALLOWED_USER_IDS ?? '')
+  .split(',').map(s => s.trim()).filter(Boolean)
+
+const WECOM_BOT_ID = process.env.WECOM_BOT_ID
+const WECOM_BOT_SECRET = process.env.WECOM_BOT_SECRET
+const WECOM_ALLOWED = (process.env.WECOM_ALLOWED_USER_IDS ?? '')
+  .split(',').map(s => s.trim()).filter(Boolean)
+
 // ─── Parse CLI args ──────────────────────────────────────────────────────────
 // All args are transparently passed to claude.
 // kite [claude args...]
@@ -91,6 +103,26 @@ if (FEISHU_APP_ID && FEISHU_APP_SECRET) {
   })
   adapters.push(feishu)
   console.log('[Kite] Feishu adapter registered')
+}
+
+if (WEIXIN_TOKEN) {
+  const wx = new WeixinAdapter({
+    token: WEIXIN_TOKEN,
+    baseUrl: WEIXIN_BASE_URL,
+    allowedUserIds: WEIXIN_ALLOWED,
+  })
+  adapters.push(wx)
+  console.log('[Kite] WeChat adapter registered')
+}
+
+if (WECOM_BOT_ID && WECOM_BOT_SECRET) {
+  const wecom = new WecomAdapter({
+    botId: WECOM_BOT_ID,
+    secret: WECOM_BOT_SECRET,
+    allowedUserIds: WECOM_ALLOWED,
+  })
+  adapters.push(wecom)
+  console.log('[Kite] WeCom adapter registered')
 }
 
 // ─── Launch ──────────────────────────────────────────────────────────────────
