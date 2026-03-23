@@ -2,7 +2,7 @@
 
 > **English** | [中文](./README.zh-CN.md)
 
-A Claude Code launcher that bridges your terminal session to Telegram, Feishu/Lark, and more.
+A Claude Code launcher that bridges your terminal session to Telegram, Feishu/Lark, WeChat, WeCom, and more.
 
 Run `kite` instead of `claude` — same terminal experience, plus IM control from anywhere.
 
@@ -68,7 +68,7 @@ You run: kite [claude args...]
          ┌─── State Machine ───┐
          │                      │
     Local Mode            Remote Mode
-    (Terminal)            (IM: Telegram / Feishu)
+    (Terminal)            (IM: Telegram / Feishu / WeChat / WeCom)
          │                      │
     spawn claude           spawn claude
     stdio: inherit         -p --resume --output-format text
@@ -112,10 +112,23 @@ TELEGRAM_ALLOWED_USER_IDS=               # comma-separated, empty = pairing mode
 # ── Feishu / Lark ────────────────────────────
 FEISHU_APP_ID=xxx                        # From https://open.feishu.cn/app
 FEISHU_APP_SECRET=xxx
+
+# ── WeChat (iLink Bot) ───────────────────────
+WEIXIN_BOT_TOKEN=xxx                     # Via QR code scan in `kite setup`
+
+# ── WeCom (企业微信) ─────────────────────────
+WECOM_BOT_ID=xxx                         # From WeCom admin console
+WECOM_BOT_SECRET=xxx
 EOF
 ```
 
-You can configure one or both. Shell environment variables override the config file.
+You can configure one or more. Shell environment variables override the config file.
+
+Or use the interactive setup wizard:
+
+```bash
+kite setup
+```
 
 ### Run
 
@@ -153,6 +166,21 @@ Uses the official [@larksuiteoapi/node-sdk](https://github.com/larksuite/node-sd
 2. Enable **Bot** capability and **Messaging** permission
 3. Set `FEISHU_APP_ID` and `FEISHU_APP_SECRET` in config
 
+### WeChat (iLink Bot)
+
+Uses WeChat's iLink Bot API with long polling — no webhook or public server needed.
+
+**Setup:** Run `kite setup`, select WeChat, scan the QR code with your WeChat app. The token is saved automatically.
+
+### WeCom (企业微信)
+
+Uses the official [@wecom/aibot-node-sdk](https://github.com/WecomTeam/aibot-node-sdk) with WebSocket long connection — no webhook or public server needed.
+
+**Setup:**
+1. Create an AI Bot in the WeCom admin console
+2. Get the **Bot ID** and **Bot Secret**
+3. Set `WECOM_BOT_ID` and `WECOM_BOT_SECRET` in config
+
 ### IM Commands (all platforms)
 
 | Command | Description |
@@ -180,7 +208,9 @@ kite/
 ├── packages/
 │   ├── core/                 # State machine, session management, TUI
 │   ├── telegram/             # Telegram adapter (grammy, long polling)
-│   └── feishu/               # Feishu/Lark adapter (official SDK, WebSocket)
+│   ├── feishu/               # Feishu/Lark adapter (official SDK, WebSocket)
+│   ├── weixin/               # WeChat adapter (iLink Bot, long polling)
+│   └── wecom/                # WeCom adapter (official SDK, WebSocket)
 └── apps/
     └── cli/                  # CLI entry point
 ```
@@ -209,6 +239,8 @@ interface IMAdapter {
 - **Language**: TypeScript
 - **Telegram**: grammy (long polling, no webhook needed)
 - **Feishu**: @larksuiteoapi/node-sdk (WebSocket, no webhook needed)
+- **WeChat**: iLink Bot API (long polling, no webhook needed)
+- **WeCom**: @wecom/aibot-node-sdk (WebSocket, no webhook needed)
 - **File watching**: chokidar
 
 ## Compatibility
@@ -231,7 +263,7 @@ Happy is a mobile-first client for Claude Code — you control Claude from their
 |---|---|---|
 | **Philosophy** | Terminal-first, IM as remote control | Mobile-first, app as primary UI |
 | **Infrastructure** | None — fully local | Requires relay server (hosted or self-deployed) |
-| **IM platform** | Your existing Telegram / Feishu | Their dedicated app (iOS / Android / Web) |
+| **IM platform** | Your existing Telegram / Feishu / WeChat / WeCom | Their dedicated app (iOS / Android / Web) |
 | **Account** | Just a bot token | Registration required |
 | **Terminal experience** | Full Claude Code TUI, untouched | Has terminal mode, but focused on mobile |
 
@@ -248,7 +280,7 @@ CC-Connect is a powerful IM gateway that pipes messages between many AI agents (
 | **Terminal mode** | Yes — full Claude Code TUI | No — IM only |
 | **Switching** | Seamless terminal ↔ IM mid-session | N/A (always IM) |
 | **Agent support** | Claude Code | 7 agents |
-| **IM platforms** | Telegram, Feishu | 9 platforms |
+| **IM platforms** | Telegram, Feishu, WeChat, WeCom | 9 platforms |
 | **Language** | TypeScript (Bun) | Go |
 
 **Choose CC-Connect if** you need broad agent/platform coverage and don't need the terminal.

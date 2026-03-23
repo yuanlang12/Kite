@@ -2,7 +2,7 @@
 
 > [English](./README.md) | **中文**
 
-一个 Claude Code 启动器，将你的终端会话桥接到 Telegram、飞书等 IM 平台。
+一个 Claude Code 启动器，将你的终端会话桥接到 Telegram、飞书、微信、企业微信等 IM 平台。
 
 运行 `kite` 替代 `claude` —— 终端体验完全一致，同时可以从任何地方通过 IM 控制。
 
@@ -68,7 +68,7 @@ Kite 用 **互斥状态机** 包裹 Claude Code：任意时刻，只有终端 **
          ┌─── 状态机循环 ───┐
          │                   │
     本地模式            远程模式
-    (终端交互)          (IM: Telegram / 飞书)
+    (终端交互)          (IM: Telegram / 飞书 / 微信 / 企微)
          │                   │
     启动 claude          启动 claude
     stdio: inherit       -p --resume --output-format text
@@ -112,10 +112,23 @@ TELEGRAM_ALLOWED_USER_IDS=               # 逗号分隔，留空 = 配对模式
 # ── 飞书 / Lark ──────────────────────────────
 FEISHU_APP_ID=xxx                        # 从 https://open.feishu.cn/app 获取
 FEISHU_APP_SECRET=xxx
+
+# ── 微信（iLink Bot）─────────────────────────
+WEIXIN_BOT_TOKEN=xxx                     # 通过 `kite setup` 扫码获取
+
+# ── 企业微信（WeCom）─────────────────────────
+WECOM_BOT_ID=xxx                         # 从企微管理后台获取
+WECOM_BOT_SECRET=xxx
 EOF
 ```
 
-可以只配一个，也可以都配。Shell 环境变量会覆盖配置文件中的值。
+可以只配一个，也可以全部配。Shell 环境变量会覆盖配置文件中的值。
+
+或者使用交互式配置向导：
+
+```bash
+kite setup
+```
 
 ### 运行
 
@@ -153,6 +166,21 @@ kite --dangerously-skip-permissions  # YOLO 模式（本地 + 远程均跳过权
 2. 开启 **机器人** 能力，添加 **消息** 相关权限
 3. 将 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET` 填入配置文件
 
+### 微信（iLink Bot）
+
+使用微信 iLink Bot API 长轮询 —— 无需 Webhook，无需公网服务器。
+
+**配置方式：** 运行 `kite setup`，选择微信，用微信扫描终端中的二维码即可。Token 会自动保存。
+
+### 企业微信（WeCom）
+
+使用官方 [@wecom/aibot-node-sdk](https://github.com/WecomTeam/aibot-node-sdk) WebSocket 长连接 —— 无需 Webhook，无需公网服务器。
+
+**配置方式：**
+1. 在企业微信管理后台创建智能机器人
+2. 获取 **Bot ID** 和 **Bot Secret**
+3. 将 `WECOM_BOT_ID` 和 `WECOM_BOT_SECRET` 填入配置文件
+
 ### IM 命令（所有平台通用）
 
 | 命令 | 说明 |
@@ -180,7 +208,9 @@ kite/
 ├── packages/
 │   ├── core/                 # 状态机、会话管理、TUI
 │   ├── telegram/             # Telegram 适配器（grammy，长轮询）
-│   └── feishu/               # 飞书/Lark 适配器（官方 SDK，WebSocket）
+│   ├── feishu/               # 飞书/Lark 适配器（官方 SDK，WebSocket）
+│   ├── weixin/               # 微信适配器（iLink Bot，长轮询）
+│   └── wecom/                # 企业微信适配器（官方 SDK，WebSocket）
 └── apps/
     └── cli/                  # CLI 入口
 ```
@@ -209,6 +239,8 @@ interface IMAdapter {
 - **语言**：TypeScript
 - **Telegram**：grammy（长轮询，无需 Webhook）
 - **飞书**：@larksuiteoapi/node-sdk（WebSocket，无需 Webhook）
+- **微信**：iLink Bot API（长轮询，无需 Webhook）
+- **企业微信**：@wecom/aibot-node-sdk（WebSocket，无需 Webhook）
 - **文件监听**：chokidar
 
 ## 兼容性
@@ -231,7 +263,7 @@ Happy 是一个移动优先的 Claude Code 客户端 —— 通过专属 iOS/And
 |---|---|---|
 | **理念** | 终端优先，IM 是遥控器 | 移动优先，App 是主界面 |
 | **基础设施** | 无 —— 完全本地 | 需要中继服务器（官方托管或自部署） |
-| **IM 方式** | 复用你的 Telegram / 飞书 | 专属 App（iOS / Android / Web） |
+| **IM 方式** | 复用你的 Telegram / 飞书 / 微信 / 企微 | 专属 App（iOS / Android / Web） |
 | **账号** | 只需一个 Bot Token | 需要注册账号 |
 | **终端体验** | 完整的 Claude Code TUI，原汁原味 | 有终端模式，但侧重移动端 |
 
@@ -248,7 +280,7 @@ CC-Connect 是一个功能强大的 IM 网关，能在多种 AI Agent（Claude C
 | **终端模式** | 有 —— 完整 Claude Code TUI | 无 —— 仅 IM |
 | **模式切换** | 终端 ↔ IM 无缝切换 | 不适用（始终是 IM） |
 | **Agent 支持** | Claude Code | 7 种 Agent |
-| **IM 平台** | Telegram、飞书 | 9 种平台 |
+| **IM 平台** | Telegram、飞书、微信、企微 | 9 种平台 |
 | **语言** | TypeScript (Bun) | Go |
 
 **选 CC-Connect**：你需要广泛的 Agent/平台支持，不需要终端交互。
