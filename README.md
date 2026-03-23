@@ -254,6 +254,10 @@ CC-Connect is a powerful IM gateway that pipes messages between many AI agents (
 **Choose CC-Connect if** you need broad agent/platform coverage and don't need the terminal.
 **Choose Kite if** you want to keep using Claude Code in your terminal normally, and add IM as a seamless overlay for when you step away.
 
+## Community
+
+Kite is shared and discussed on [LINUX DO](https://linux.do/) — a vibrant developer community where possible begins.
+
 ## License
 
 MIT

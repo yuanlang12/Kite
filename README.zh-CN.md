@@ -254,6 +254,10 @@ CC-Connect 是一个功能强大的 IM 网关，能在多种 AI Agent（Claude C
 **选 CC-Connect**：你需要广泛的 Agent/平台支持，不需要终端交互。
 **选 Kite**：你想在终端里正常使用 Claude Code，IM 只是一个无缝叠加的遥控层 —— 随时切换，离开电脑也不中断。
 
+## 社区
+
+Kite 在 [LINUX DO](https://linux.do/) 社区分享和讨论 —— Where possible begins。
+
 ## 许可证
 
 MIT
