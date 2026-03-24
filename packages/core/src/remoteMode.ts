@@ -1,10 +1,14 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 
-export interface RemoteModeOptions {
+export interface RemoteMessage {
+  text: string
   sessionId: string
   projectPath: string
+}
+
+export interface RemoteModeOptions {
   extraArgs?: string[]
-  getNextMessage: () => Promise<string | null>
+  getNextMessage: () => Promise<RemoteMessage | null>
   onResponse: (text: string) => Promise<void>
   onThinking: () => Promise<void>
   onStderr?: (text: string) => void
@@ -17,15 +21,16 @@ export interface RemoteModeOptions {
 /**
  * Runs Claude Code in remote mode — receives messages from IM, processes them via Claude CLI,
  * and sends responses back. Uses non-interactive `claude -p --resume` mode.
+ * Each message carries its own sessionId/projectPath, enabling multi-project routing.
  * Returns 'switch' if aborted (user wants terminal back), 'exit' if no more messages.
  */
 export async function runRemoteMode(opts: RemoteModeOptions): Promise<'switch' | 'exit'> {
-  const { sessionId, projectPath, extraArgs, getNextMessage, onResponse, onThinking, onStderr, onTimeout, timeoutMs, signal } = opts
+  const { extraArgs, getNextMessage, onResponse, onThinking, onStderr, onTimeout, timeoutMs, signal } = opts
 
   while (!signal.aborted) {
-    const message = await getNextMessage()
+    const msg = await getNextMessage()
 
-    if (message === null || signal.aborted) {
+    if (msg === null || signal.aborted) {
       return signal.aborted ? 'switch' : 'exit'
     }
 
@@ -33,9 +38,9 @@ export async function runRemoteMode(opts: RemoteModeOptions): Promise<'switch' |
 
     try {
       const response = await executeClaudeCommand({
-        sessionId,
-        projectPath,
-        message,
+        sessionId: msg.sessionId,
+        projectPath: msg.projectPath,
+        message: msg.text,
         extraArgs,
         onStderr,
         onTimeout,

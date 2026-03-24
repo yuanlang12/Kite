@@ -1,95 +1,97 @@
 # 🪁 Kite
 
-> **English** | [中文](./README.zh-CN.md)
+> **中文** | [English](./README.en.md)
 
-A Claude Code launcher that bridges your terminal session to Telegram, Feishu/Lark, WeChat, WeCom, and more.
+一个 Claude Code 启动器，将你的终端会话桥接到 Telegram、飞书、微信、企业微信等 IM 平台。
 
-Run `kite` instead of `claude` — same terminal experience, plus IM control from anywhere.
+运行 `kite` 替代 `claude` —— 终端体验完全一致，同时可以从任何地方通过 IM 控制。
 
 <details>
-<summary><strong>🤖 Don't want to read? Copy this to Claude / ChatGPT / Cursor to auto-install</strong></summary>
+<summary><strong>🤖 不想看文档？复制以下内容到 Claude / ChatGPT / Cursor 即可自动安装</strong></summary>
 
 ```
-I want to install and set up Kite — a Claude Code launcher with IM bridge (Telegram + Feishu/Lark).
+我想安装和配置 Kite —— 一个带 IM 桥接（Telegram + 飞书）的 Claude Code 启动器。
 
-Here's what you need to do:
+请按以下步骤操作：
 
-1. Check prerequisites:
-   - Bun installed? Run: bun --version
-   - Claude Code installed? Run: claude --version
-   - If not installed, install Bun from https://bun.sh and Claude Code from https://docs.anthropic.com
+1. 检查前置条件：
+   - Bun 已安装？执行：bun --version
+   - Claude Code 已安装？执行：claude --version
+   - 如果没有安装，从 https://bun.sh 安装 Bun，从 https://docs.anthropic.com 安装 Claude Code
 
-2. Clone and install:
+2. 克隆并安装：
    git clone https://github.com/yuanlang12/Kite.git
    cd Kite
    bun install
    bun link
 
-3. Set up IM bot (pick one or both):
+3. 配置 IM Bot（选一个或两个都配）：
 
-   For Telegram:
-   - I need a Telegram bot token. If I don't have one, tell me to message @BotFather on Telegram,
-     send /newbot, follow the prompts, and paste the token here.
-   - Once I give you the token, create the config:
+   Telegram：
+   - 我需要一个 Telegram Bot Token。如果我还没有，请告诉我在 Telegram 上找 @BotFather，
+     发送 /newbot，按提示操作，然后把 Token 给你。
+   - 拿到 Token 后，创建配置文件：
      mkdir -p ~/.config/kite
-     echo 'TELEGRAM_BOT_TOKEN=<my_token>' > ~/.config/kite/.env
+     echo 'TELEGRAM_BOT_TOKEN=<我的token>' > ~/.config/kite/.env
 
-   For Feishu/Lark:
-   - I need a Feishu app. Go to https://open.feishu.cn/app, create an app,
-     enable the "Messaging" permission and "Bot" capability, then give me the App ID and App Secret.
-   - Add to the config:
+   飞书 / Lark：
+   - 我需要一个飞书应用。去 https://open.feishu.cn/app 创建应用，
+     开启「机器人」能力和「消息」权限，然后把 App ID 和 App Secret 给你。
+   - 添加到配置文件：
      mkdir -p ~/.config/kite
      cat >> ~/.config/kite/.env << 'EOF'
-     FEISHU_APP_ID=<my_app_id>
-     FEISHU_APP_SECRET=<my_app_secret>
+     FEISHU_APP_ID=<我的app_id>
+     FEISHU_APP_SECRET=<我的app_secret>
      EOF
 
-4. Test it:
-   Run: kite
-   This should start Claude Code normally. Then send a message to the bot on your IM —
-   it should switch to remote mode and respond.
+4. 测试：
+   执行：kite
+   这应该会正常启动 Claude Code。然后在 IM 上给 Bot 发条消息 ——
+   它应该会切换到远程模式并回复。
 
-5. If Telegram shows a 409 error about "terminated by other getUpdates request", just wait 30 seconds
-   and try again — the previous bot session needs to timeout.
+5. 如果 Telegram 出现 409 错误（"terminated by other getUpdates request"），等 30 秒
+   再试 —— 上一个 Bot 会话需要超时断开。
 
-Ask me for any information you need (like bot tokens) and guide me through each step.
+需要我提供任何信息（比如 Bot Token）时请直接问我，然后一步步引导我完成。
 ```
 
 </details>
 
-## How It Works
+## 工作原理
 
-Kite wraps Claude Code with a **mutual-exclusion state machine**: at any moment, either your terminal OR an IM platform is controlling Claude. Both share the same session via `--resume`.
+Kite 用 **互斥状态机** 包裹 Claude Code：任意时刻，只有终端 **或** IM 平台在控制 Claude，两者通过 `--resume` 共享同一个会话。
 
 ```
-You run: kite [claude args...]
+你运行: kite [claude 参数...]
                 │
                 ▼
-         ┌─── State Machine ───┐
-         │                      │
-    Local Mode            Remote Mode
-    (Terminal)            (IM: Telegram / Feishu / WeChat / WeCom)
-         │                      │
-    spawn claude           spawn claude
-    stdio: inherit         -p --resume --output-format text
-    Normal terminal        IM messages → Claude → IM reply
-         │                      │
-    IM message ──────→ kill local, start remote
-         │                      │
-    Press Enter ←────── kill remote, start local
+         ┌─── 状态机循环 ───┐
+         │                   │
+    本地模式            远程模式
+    (终端交互)          (IM: Telegram / 飞书 / 微信 / 企微)
+         │                   │
+    启动 claude          启动 claude
+    stdio: inherit       -p --resume --output-format text
+    正常终端操作          IM 消息 → Claude → IM 回复
+         │                   │
+    IM 消息到达 ──────→ 终止本地, 启动远程
+         │                   │
+    按 Enter ←────── 终止远程, 启动本地
 ```
 
-**Only one Claude process runs at a time.** Session is shared via `--resume`.
+**同一时刻只有一个 Claude 进程在运行。** 会话通过 `--resume` 共享。
 
-## Quick Start
+> **⚠️ 重要：每个 Bot 只能运行一个 Kite 进程。** 如果你在多个项目目录下分别启动了 kite，所有 IM 消息会被多个进程同时收到，导致重复回复。正确做法是只启动一个 kite，通过[多项目路由](#多项目路由)管理不同项目。
 
-### Prerequisites
+## 快速开始
 
-- [Bun](https://bun.sh) runtime
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI installed
-- At least one IM bot set up (see below)
+### 前置条件
 
-### Install
+- [Bun](https://bun.sh) 运行时
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI 已安装
+- 至少配置一个 IM Bot（见下方）
+
+### 安装
 
 ```bash
 git clone https://github.com/yuanlang12/Kite.git
@@ -98,128 +100,179 @@ bun install
 bun link
 ```
 
-### Configure
+### 配置
 
-Config file: `~/.config/kite/.env`
+配置文件路径：`~/.config/kite/.env`
 
 ```bash
 mkdir -p ~/.config/kite
 cat > ~/.config/kite/.env << 'EOF'
 # ── Telegram ──────────────────────────────────
-TELEGRAM_BOT_TOKEN=xxx                   # Get from @BotFather
-TELEGRAM_ALLOWED_USER_IDS=               # comma-separated, empty = pairing mode
+TELEGRAM_BOT_TOKEN=xxx                   # 从 @BotFather 获取
+TELEGRAM_ALLOWED_USER_IDS=               # 逗号分隔，留空 = 配对模式
 
-# ── Feishu / Lark ────────────────────────────
-FEISHU_APP_ID=xxx                        # From https://open.feishu.cn/app
+# ── 飞书 / Lark ──────────────────────────────
+FEISHU_APP_ID=xxx                        # 从 https://open.feishu.cn/app 获取
 FEISHU_APP_SECRET=xxx
 
-# ── WeChat (iLink Bot) ───────────────────────
-WEIXIN_BOT_TOKEN=xxx                     # Via QR code scan in `kite setup`
+# ── 微信（iLink Bot）─────────────────────────
+WEIXIN_BOT_TOKEN=xxx                     # 通过 `kite setup` 扫码获取
 
-# ── WeCom (企业微信) ─────────────────────────
-WECOM_BOT_ID=xxx                         # From WeCom admin console
+# ── 企业微信（WeCom）─────────────────────────
+WECOM_BOT_ID=xxx                         # 从企微管理后台获取
 WECOM_BOT_SECRET=xxx
 EOF
 ```
 
-You can configure one or more. Shell environment variables override the config file.
+可以只配一个，也可以全部配。Shell 环境变量会覆盖配置文件中的值。
 
-Or use the interactive setup wizard:
+或者使用交互式配置向导：
 
 ```bash
 kite setup
 ```
 
-### Run
+### 运行
 
 ```bash
-kite                          # Same as claude, but with IM bridge
-kite --resume abc123          # Resume a specific session
-kite "fix the bug"            # With initial prompt
-kite --model sonnet           # Use a specific model
-kite --dangerously-skip-permissions  # YOLO mode (both local + remote)
+kite                          # 等同于 claude，但带 IM 桥接
+kite --resume abc123          # 恢复特定会话
+kite "fix the bug"            # 带初始 prompt
+kite --model sonnet           # 使用指定模型
+kite --dangerously-skip-permissions  # YOLO 模式（本地 + 远程均跳过权限确认）
 ```
 
-All arguments are transparently passed to `claude`.
+所有参数透传给 `claude`。
 
-> **💡 Tip:** In remote mode, Claude cannot prompt you for permission approvals — if it needs one, it will exit silently. For the best IM experience, run with `--dangerously-skip-permissions` or `--permission-mode auto` so Claude can work unattended.
+> **💡 建议：** 远程模式下 Claude 无法弹出权限确认 —— 如果需要授权，它会直接退出。为了获得最佳 IM 体验，建议使用 `--dangerously-skip-permissions` 或 `--permission-mode auto` 启动，让 Claude 能自主执行。
 
-## Supported IM Platforms
+## 支持的 IM 平台
 
 ### Telegram
 
-Uses [grammy](https://grammy.dev/) with long polling — no webhook or public server needed.
+使用 [grammy](https://grammy.dev/) 长轮询 —— 无需 Webhook，无需公网服务器。
 
-**Setup:** Create a bot via [@BotFather](https://t.me/BotFather), set `TELEGRAM_BOT_TOKEN` in config.
+**配置方式：** 通过 [@BotFather](https://t.me/BotFather) 创建 Bot，将 Token 填入配置文件的 `TELEGRAM_BOT_TOKEN`。
 
-**Access control:**
-- **First use**: Open mode — your first message goes through automatically
-- **After that**: Pairing mode — new users get a 6-digit code and need approval via `/approve`
-- **Or**: Set `TELEGRAM_ALLOWED_USER_IDS` for strict allowlist
+**访问控制：**
+- **首次使用**：开放模式 —— 第一个向 Bot 发送消息的用户自动通过
+- **之后**：配对模式 —— 新用户会收到一个 6 位配对码，需要通过 `/approve` 审批
+- **或者**：设置 `TELEGRAM_ALLOWED_USER_IDS` 进行严格白名单控制
 
-### Feishu / Lark
+### 飞书 / Lark
 
-Uses the official [@larksuiteoapi/node-sdk](https://github.com/larksuite/node-sdk) with WebSocket long connection — no webhook or public server needed.
+使用官方 [@larksuiteoapi/node-sdk](https://github.com/larksuite/node-sdk) WebSocket 长连接 —— 无需 Webhook，无需公网服务器。
 
-**Setup:**
-1. Go to [Feishu Open Platform](https://open.feishu.cn/app) and create an app
-2. Enable **Bot** capability and **Messaging** permission
-3. Set `FEISHU_APP_ID` and `FEISHU_APP_SECRET` in config
+**配置方式：**
+1. 前往 [飞书开放平台](https://open.feishu.cn/app) 创建应用
+2. 开启 **机器人** 能力，添加 **消息** 相关权限
+3. 将 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET` 填入配置文件
 
-### WeChat (iLink Bot)
+### 微信（iLink Bot）
 
-Uses WeChat's iLink Bot API with long polling — no webhook or public server needed.
+使用微信 iLink Bot API 长轮询 —— 无需 Webhook，无需公网服务器。
 
-**Setup:** Run `kite setup`, select WeChat, scan the QR code with your WeChat app. The token is saved automatically.
+**配置方式：** 运行 `kite setup`，选择微信，用微信扫描终端中的二维码即可。Token 会自动保存。
 
-### WeCom (企业微信)
+### 企业微信（WeCom）
 
-Uses the official [@wecom/aibot-node-sdk](https://github.com/WecomTeam/aibot-node-sdk) with WebSocket long connection — no webhook or public server needed.
+使用官方 [@wecom/aibot-node-sdk](https://github.com/WecomTeam/aibot-node-sdk) WebSocket 长连接 —— 无需 Webhook，无需公网服务器。
 
-**Setup:**
-1. Create an AI Bot in the WeCom admin console
-2. Get the **Bot ID** and **Bot Secret**
-3. Set `WECOM_BOT_ID` and `WECOM_BOT_SECRET` in config
+**配置方式：**
+1. 在企业微信管理后台创建智能机器人
+2. 获取 **Bot ID** 和 **Bot Secret**
+3. 将 `WECOM_BOT_ID` 和 `WECOM_BOT_SECRET` 填入配置文件
 
-### IM Commands (all platforms)
+### IM 命令（所有平台通用）
 
-| Command | Description |
-|---------|-------------|
-| `/model sonnet` | Switch model (sonnet / opus / haiku) |
-| `/effort high` | Set reasoning effort (low / medium / high / max) |
-| `/status` | Show current settings |
-| `/approve <code>` | Approve a new user's pairing code |
+| 命令 | 说明 |
+|------|------|
+| `/model sonnet` | 切换模型（sonnet / opus / haiku）|
+| `/effort high` | 设置推理强度（low / medium / high / max）|
+| `/status` | 查看当前设置和绑定的项目 |
+| `/approve <code>` | 审批新用户的配对码 |
+| `/addproject <名称> <路径>` | 注册一个项目 |
+| `/rmproject <名称>` | 移除注册的项目 |
+| `/bind <名称>` | 将当前聊天绑定到指定项目 |
+| `/unbind` | 解除绑定，恢复使用默认项目 |
+| `/projects` | 查看所有项目及绑定关系 |
 
-## Features
+## 功能
 
-### Terminal (Local Mode)
-Identical to running `claude` directly. Full TUI, all features.
+### 终端（本地模式）
+与直接运行 `claude` 完全一致，TUI 功能全部可用。
 
-### Remote Mode
-When an IM message arrives, Kite kills the local Claude and starts a remote Claude process to handle it. A retro Macintosh-style TUI shows the activity in your terminal.
+### 远程模式
+当 IM 消息到达时，Kite 会终止本地 Claude 并启动远程 Claude 进程处理。终端上会显示一个复古 Macintosh 风格的 TUI 展示活动状态。
 
-### Auto Keep-Alive
-On macOS, Kite automatically prevents idle sleep (`caffeinate`) so IM messages work even when you walk away.
+### 自动防休眠
+在 macOS 上，Kite 会自动阻止系统进入待机状态（`caffeinate`），即使你离开电脑，IM 消息也能正常处理。
 
-## Project Structure
+## 多项目路由
+
+一个 Kite 进程可以管理多个项目。不同的 IM 聊天/群组可以绑定到不同的项目。
+
+### 为什么只能开一个 Kite？
+
+每个 IM Bot（Telegram Bot、飞书应用、微信 Bot 等）同一时间只能被一个进程连接。如果你在两个项目目录下各开了一个 kite，两个进程会同时收到同一条 IM 消息，产生重复回复。
+
+**正确做法：** 只启动一个 kite 进程，通过命令注册和切换项目。
+
+### 使用方法
+
+```bash
+# 1. 在你的主项目目录下启动 kite（只启动一次）
+cd ~/code/my-app
+kite
+```
+
+然后在 IM 中操作：
+
+```
+# 2. 注册其他项目
+/addproject blog ~/code/blog
+/addproject api ~/code/api-server
+
+# 3. 绑定当前聊天到某个项目
+/bind blog
+
+# 4. 之后这个聊天的所有消息都会路由到 blog 项目
+
+# 5. 想换项目？重新绑定即可
+/bind api
+
+# 6. 解除绑定（回到默认项目）
+/unbind
+```
+
+首次发消息时，如果有多个已注册项目且当前聊天未绑定，Kite 会提示你选择项目，点击复制发送即可绑定：
+
+```
+🪁 Please choose a project first 👇
+/bind blog
+/bind api
+/bind default
+```
+
+## 项目结构
 
 ```
 kite/
 ├── packages/
-│   ├── core/                 # State machine, session management, TUI
-│   ├── telegram/             # Telegram adapter (grammy, long polling)
-│   ├── feishu/               # Feishu/Lark adapter (official SDK, WebSocket)
-│   ├── weixin/               # WeChat adapter (iLink Bot, long polling)
-│   └── wecom/                # WeCom adapter (official SDK, WebSocket)
+│   ├── core/                 # 状态机、会话管理、TUI
+│   ├── telegram/             # Telegram 适配器（grammy，长轮询）
+│   ├── feishu/               # 飞书/Lark 适配器（官方 SDK，WebSocket）
+│   ├── weixin/               # 微信适配器（iLink Bot，长轮询）
+│   └── wecom/                # 企业微信适配器（官方 SDK，WebSocket）
 └── apps/
-    └── cli/                  # CLI entry point
+    └── cli/                  # CLI 入口
 ```
 
-## Adding a New IM Platform
+## 添加新的 IM 平台
 
-1. Create `packages/<platform>/`
-2. Implement the `IMAdapter` interface from `@kite/core`
-3. Register in `apps/cli/src/index.ts`
+1. 创建 `packages/<platform>/`
+2. 实现 `@kite/core` 中的 `IMAdapter` 接口
+3. 在 `apps/cli/src/index.ts` 中注册
 
 ```typescript
 interface IMAdapter {
@@ -233,63 +286,63 @@ interface IMAdapter {
 }
 ```
 
-## Tech Stack
+## 技术栈
 
-- **Runtime**: Bun
-- **Language**: TypeScript
-- **Telegram**: grammy (long polling, no webhook needed)
-- **Feishu**: @larksuiteoapi/node-sdk (WebSocket, no webhook needed)
-- **WeChat**: iLink Bot API (long polling, no webhook needed)
-- **WeCom**: @wecom/aibot-node-sdk (WebSocket, no webhook needed)
-- **File watching**: chokidar
+- **运行时**：Bun
+- **语言**：TypeScript
+- **Telegram**：grammy（长轮询，无需 Webhook）
+- **飞书**：@larksuiteoapi/node-sdk（WebSocket，无需 Webhook）
+- **微信**：iLink Bot API（长轮询，无需 Webhook）
+- **企业微信**：@wecom/aibot-node-sdk（WebSocket，无需 Webhook）
+- **文件监听**：chokidar
 
-## Compatibility
+## 兼容性
 
-| Platform | Status |
-|----------|--------|
-| macOS | Tested |
-| Linux | Should work |
-| Windows | Experimental — community help welcome |
+| 平台 | 状态 |
+|------|------|
+| macOS | 已测试 |
+| Linux | 应该可用 |
+| Windows | 实验性 —— 欢迎社区贡献 |
 
-## How Kite Compares
+## 与同类工具的对比
 
-There are other great tools in this space. Here's how Kite differs:
+这个领域还有其他优秀的工具，以下是 Kite 与它们的区别：
 
 ### vs [Happy](https://github.com/slopus/happy)
 
-Happy is a mobile-first client for Claude Code — you control Claude from their iOS/Android app or web UI, with messages relayed through a cloud server (E2E encrypted).
+Happy 是一个移动优先的 Claude Code 客户端 —— 通过专属 iOS/Android App 或 Web 端控制 Claude，消息经由云中继服务器转发（端到端加密）。
 
 | | Kite | Happy |
 |---|---|---|
-| **Philosophy** | Terminal-first, IM as remote control | Mobile-first, app as primary UI |
-| **Infrastructure** | None — fully local | Requires relay server (hosted or self-deployed) |
-| **IM platform** | Your existing Telegram / Feishu / WeChat / WeCom | Their dedicated app (iOS / Android / Web) |
-| **Account** | Just a bot token | Registration required |
-| **Terminal experience** | Full Claude Code TUI, untouched | Has terminal mode, but focused on mobile |
+| **理念** | 终端优先，IM 是遥控器 | 移动优先，App 是主界面 |
+| **基础设施** | 无 —— 完全本地 | 需要中继服务器（官方托管或自部署） |
+| **IM 方式** | 复用你的 Telegram / 飞书 / 微信 / 企微 | 专属 App（iOS / Android / Web） |
+| **账号** | 只需一个 Bot Token | 需要注册账号 |
+| **终端体验** | 完整的 Claude Code TUI，原汁原味 | 有终端模式，但侧重移动端 |
 
-**Choose Happy if** you want a polished mobile app with push notifications and voice input.
-**Choose Kite if** you live in the terminal and want your existing IM as a lightweight remote control — no servers, no extra apps.
+**选 Happy**：你想要精致的移动 App、推送通知和语音输入。
+**选 Kite**：你常驻终端，只想用现有的 IM 作为轻量遥控器 —— 不需要服务器，不需要额外 App。
 
 ### vs [CC-Connect](https://github.com/chenhg5/cc-connect)
 
-CC-Connect is a powerful IM gateway that pipes messages between many AI agents (Claude Code, Codex, Cursor, Gemini CLI, etc.) and many IM platforms (Telegram, Feishu, DingTalk, Slack, Discord, etc.).
+CC-Connect 是一个功能强大的 IM 网关，能在多种 AI Agent（Claude Code、Codex、Cursor、Gemini CLI 等）和多种 IM 平台（Telegram、飞书、钉钉、Slack、Discord 等）之间转发消息。
 
 | | Kite | CC-Connect |
 |---|---|---|
-| **Philosophy** | Terminal + IM hybrid | Pure IM gateway |
-| **Terminal mode** | Yes — full Claude Code TUI | No — IM only |
-| **Switching** | Seamless terminal ↔ IM mid-session | N/A (always IM) |
-| **Agent support** | Claude Code | 7 agents |
-| **IM platforms** | Telegram, Feishu, WeChat, WeCom | 9 platforms |
-| **Language** | TypeScript (Bun) | Go |
+| **理念** | 终端 + IM 混合模式 | 纯 IM 网关 |
+| **终端模式** | 有 —— 完整 Claude Code TUI | 无 —— 仅 IM |
+| **模式切换** | 终端 ↔ IM 无缝切换 | 不适用（始终是 IM） |
+| **Agent 支持** | Claude Code | 7 种 Agent |
+| **IM 平台** | Telegram、飞书、微信、企微 | 9 种平台 |
+| **语言** | TypeScript (Bun) | Go |
 
-**Choose CC-Connect if** you need broad agent/platform coverage and don't need the terminal.
-**Choose Kite if** you want to keep using Claude Code in your terminal normally, and add IM as a seamless overlay for when you step away.
+**选 CC-Connect**：你需要广泛的 Agent/平台支持，不需要终端交互。
+**选 Kite**：你想在终端里正常使用 Claude Code，IM 只是一个无缝叠加的遥控层 —— 随时切换，离开电脑也不中断。
 
-## Community
+## 社区
 
-Kite is shared and discussed on [LINUX DO](https://linux.do/) — a vibrant developer community where possible begins.
+Kite 在 [LINUX DO](https://linux.do/) 社区分享和讨论 —— Where possible begins。
 
-## License
+## 许可证
 
 MIT

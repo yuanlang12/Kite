@@ -4,7 +4,9 @@ import { SessionScanner } from './sessionScanner.js'
 import { findLatestSessionId } from './sessionManager.js'
 import { RemoteTUI } from './remoteTUI.js'
 import { AccessGate } from './accessGate.js'
-import type { IMAdapter, IncomingMessage } from './types.js'
+import { ProjectRouter } from './projectRouter.js'
+import { basename } from 'node:path'
+import type { IMAdapter, IncomingMessage, ProjectRoute } from './types.js'
 
 export interface LauncherOptions {
   projectPath: string
@@ -15,10 +17,12 @@ export interface LauncherOptions {
 interface QueuedMessage {
   text: string
   chatId: string
+  messageId?: string
   adapter: IMAdapter
+  route: ProjectRoute
 }
 
-// ─── Remote settings (controlled via Telegram commands) ─────────────────────
+// ─── Remote settings (controlled via IM commands) ─────────────────────────
 
 interface RemoteSettings {
   model: string | null           // --model
@@ -38,8 +42,22 @@ function settingsToArgs(s: RemoteSettings): string[] {
   return args
 }
 
+// ─── Command handling ──────────────────────────────────────────────────────
+
+interface CommandContext {
+  chatKey: string
+  adapter: IMAdapter
+  chatId: string
+}
+
 /** Handle a /command message. Returns response text, or null if not a command. */
-function handleCommand(text: string, settings: RemoteSettings, gate: AccessGate): string | null {
+function handleCommand(
+  text: string,
+  settings: RemoteSettings,
+  gate: AccessGate,
+  router: ProjectRouter,
+  ctx: CommandContext,
+): string | null {
   const trimmed = text.trim()
   if (!trimmed.startsWith('/')) return null
 
@@ -75,10 +93,50 @@ function handleCommand(text: string, settings: RemoteSettings, gate: AccessGate)
       if (!result) return `Invalid or expired code: ${arg}`
       return `Approved: ${result.username ?? result.userId}`
     }
+    case '/addproject': {
+      const alias = parts[1]
+      const path = parts.slice(2).join(' ')
+      if (!alias || !path) return `Usage: /addproject <name> <path>\nExample: /addproject frontend ~/code/webapp`
+      const result = router.addProject(alias, path)
+      if (!result.ok) return result.error!
+      return `Project "${alias}" added: ${path}`
+    }
+    case '/rmproject': {
+      if (!arg) return `Usage: /rmproject <name>`
+      const result = router.removeProject(arg)
+      if (!result.ok) return result.error!
+      return `Project "${arg}" removed`
+    }
+    case '/bind': {
+      if (!arg) {
+        const route = router.resolve(ctx.chatKey)
+        return `Current project: ${route.alias} (${route.projectPath})`
+      }
+      const result = router.bind(ctx.chatKey, arg)
+      if (!result.ok) return result.error!
+      return `This chat is now bound to project "${arg}"`
+    }
+    case '/unbind': {
+      router.unbind(ctx.chatKey)
+      return `Binding removed. Will use default project.`
+    }
+    case '/projects': {
+      const projects = router.listProjects()
+      const bindings = router.listBindings()
+      const lines = ['Projects:']
+      for (const p of projects) {
+        const bound = bindings.filter((b) => b.alias === p.alias).map((b) => b.chatKey)
+        const bindInfo = bound.length > 0 ? ` (bound: ${bound.join(', ')})` : ''
+        lines.push(`  ${p.alias === 'default' ? '* ' : '  '}${p.alias}: ${p.projectPath}${bindInfo}`)
+      }
+      return lines.join('\n')
+    }
     case '/status': {
+      const route = router.resolve(ctx.chatKey)
       const pending = gate.listPending()
       const lines = [
         `🪁 Kite Remote Settings`,
+        `Project: ${route.alias} (${route.projectPath})`,
         `Model: ${settings.model ?? 'default'}`,
         `Effort: ${settings.effort ?? 'default'}`,
         `Access: ${gate.mode}`,
@@ -157,6 +215,9 @@ export async function launch(opts: LauncherOptions): Promise<void> {
   // Access gate for pairing authentication
   const gate = new AccessGate()
 
+  // Project router for multi-project support
+  const router = new ProjectRouter(projectPath)
+
   if (sessionId) {
     console.log(`[Kite] Found existing session: ${sessionId}`)
   }
@@ -165,10 +226,18 @@ export async function launch(opts: LauncherOptions): Promise<void> {
   const messageQueue: QueuedMessage[] = []
   let messageWaiter: ((msg: QueuedMessage) => void) | null = null
 
-  // Subscribe all adapters — push incoming messages to queue
+  // Subscribe all adapters — push incoming messages to queue with route info
   for (const adapter of adapters) {
     adapter.onMessage(async (msg: IncomingMessage) => {
-      const queued: QueuedMessage = { text: msg.text, chatId: msg.chatId, adapter }
+      const chatKey = `${adapter.name}:${msg.chatId}`
+      const route = router.resolve(chatKey)
+
+      // Instant receipt acknowledgment — react with 👀 (fire-and-forget)
+      if (msg.messageId && adapter.reactToMessage) {
+        adapter.reactToMessage(msg.chatId, msg.messageId, '👀').catch(() => {})
+      }
+
+      const queued: QueuedMessage = { text: msg.text, chatId: msg.chatId, messageId: msg.messageId, adapter, route }
       if (messageWaiter) {
         const waiter = messageWaiter
         messageWaiter = null
@@ -179,14 +248,18 @@ export async function launch(opts: LauncherOptions): Promise<void> {
     })
   }
 
-  // Start session scanner — forward assistant messages to all IM chats (only in local mode)
+  // Start session scanner — forward assistant messages to bound IM chats (only in local mode)
   let scannerForwardingEnabled = true
   const subscribedChats = new Map<string, { adapter: IMAdapter; chatId: string }>()
   const scanner = new SessionScanner(projectPath)
   scanner.on((event) => {
     if (event.kind === 'assistant' && scannerForwardingEnabled && subscribedChats.size > 0) {
-      for (const { adapter, chatId } of subscribedChats.values()) {
-        adapter.sendMessage(chatId, event.text).catch(() => {})
+      for (const [chatKey, { adapter, chatId }] of subscribedChats) {
+        // Only forward to chats bound to the default project (local mode always uses default)
+        const route = router.resolve(chatKey)
+        if (route.projectPath === projectPath) {
+          adapter.sendMessage(chatId, event.text).catch(() => {})
+        }
       }
     }
   })
@@ -233,12 +306,27 @@ export async function launch(opts: LauncherOptions): Promise<void> {
         muteConsole()
 
         // If a message arrives while in local mode, abort to switch to remote
-        const messagePromise = waitForMessage().then((msg) => {
+        const messagePromise = waitForMessage().then(async (msg) => {
           messageQueue.unshift(msg)
           const chatKey = `${msg.adapter.name}:${msg.chatId}`
           subscribedChats.set(chatKey, { adapter: msg.adapter, chatId: msg.chatId })
-          // Notify IM user: switching to remote mode
-          msg.adapter.sendMessage(msg.chatId, '🪁 Switching to remote mode...').catch(() => {})
+
+          // Notify IM user: switching to remote mode with project context
+          const route = router.resolve(chatKey)
+          const registeredProjects = router.listRegisteredProjects()
+          const hasBinding = router.listBindings().some((b) => b.chatKey === chatKey)
+          const displayName = route.alias === 'default' ? basename(route.projectPath) : route.alias
+
+          if (registeredProjects.length > 0 && !hasBinding) {
+            // Multiple registered projects, no binding — gate in getNextMessage will prompt
+            // Don't send switching message here to avoid duplicate prompts
+          } else {
+            // Bound or single project — show project name
+            await msg.adapter.sendMessage(msg.chatId,
+              `🪁 Switching to remote — project: ${displayName}`,
+            ).catch(() => {})
+          }
+
           localAbort.abort()
         })
 
@@ -281,7 +369,7 @@ export async function launch(opts: LauncherOptions): Promise<void> {
 
         // Start TUI
         tui.start()
-        tui.addInfo('Waiting for Telegram messages...')
+        tui.addInfo('Waiting for IM messages...')
 
         const keyHandler = setupKeyListener(() => {
           remoteAbort.abort()
@@ -289,10 +377,9 @@ export async function launch(opts: LauncherOptions): Promise<void> {
 
         let currentAdapter: IMAdapter | null = null
         let currentChatId: string | null = null
+        let thinkingMessageId: string | null = null
 
         const result = await runRemoteMode({
-          sessionId,
-          projectPath,
           extraArgs: [...cliRemoteArgs, ...settingsToArgs(settings)],
           getNextMessage: async () => {
             while (true) {
@@ -320,11 +407,13 @@ export async function launch(opts: LauncherOptions): Promise<void> {
 
               currentAdapter = msg.adapter
               currentChatId = msg.chatId
+              thinkingMessageId = null
               const chatKey = `${msg.adapter.name}:${msg.chatId}`
               subscribedChats.set(chatKey, { adapter: msg.adapter, chatId: msg.chatId })
 
               // Check if it's a /command
-              const cmdResponse = handleCommand(msg.text, settings, gate)
+              const cmdCtx: CommandContext = { chatKey, adapter: msg.adapter, chatId: msg.chatId }
+              const cmdResponse = handleCommand(msg.text, settings, gate, router, cmdCtx)
               if (cmdResponse !== null) {
                 tui.addInfo(`Command: ${msg.text}`)
                 await msg.adapter.sendMessage(msg.chatId, cmdResponse).catch(() => {})
@@ -332,21 +421,66 @@ export async function launch(opts: LauncherOptions): Promise<void> {
                 continue // Wait for next message
               }
 
-              tui.addMessage(msg.adapter.name, msg.text)
-              return msg.text
+              // Gate: if multiple registered projects and no binding, require /bind first
+              const registered = router.listRegisteredProjects()
+              const hasBinding = router.listBindings().some((b) => b.chatKey === chatKey)
+              if (registered.length > 0 && !hasBinding) {
+                tui.addInfo(`No binding for ${chatKey}, prompting to bind`)
+                await msg.adapter.sendMessage(msg.chatId,
+                  `🪁 Please choose a project first 👇`,
+                ).catch(() => {})
+                for (const p of registered.slice(0, 5)) {
+                  await msg.adapter.sendMessage(msg.chatId, `/bind ${p.alias}`).catch(() => {})
+                }
+                // Also offer the default project
+                const defaultDisplay = basename(router.resolve(chatKey).projectPath)
+                await msg.adapter.sendMessage(msg.chatId, `/bind default`).catch(() => {})
+                continue // Skip this message — wait for /bind
+              }
+
+              // Resolve project route and ensure sessionId
+              const route = msg.route
+              const resolvedSessionId = await router.ensureSessionId(route)
+              if (!resolvedSessionId) {
+                // No session found — Claude will create a new one
+                // Use the default session as fallback for now
+                tui.addInfo(`No session for "${route.alias}", using default`)
+              }
+
+              const msgSessionId = resolvedSessionId ?? sessionId!
+              tui.addMessage(`${msg.adapter.name} [${route.alias}]`, msg.text)
+
+              return {
+                text: msg.text,
+                sessionId: msgSessionId,
+                projectPath: route.projectPath,
+              }
             }
           },
           onResponse: async (text) => {
             const preview = text.slice(0, 80) + (text.length > 80 ? '...' : '')
             tui.addResponse(preview)
             if (currentAdapter && currentChatId) {
+              if (thinkingMessageId) {
+                // Try to edit the 🤔 message into the response
+                try {
+                  await currentAdapter.editMessage(currentChatId, thinkingMessageId, text)
+                  thinkingMessageId = null
+                  return
+                } catch {
+                  // Edit not supported or failed — fall through to send new message
+                }
+              }
               await currentAdapter.sendMessage(currentChatId, text).catch(() => {})
+              thinkingMessageId = null
             }
           },
           onThinking: async () => {
             tui.addThinking()
             if (currentAdapter && currentChatId) {
-              await currentAdapter.sendTyping(currentChatId).catch(() => {})
+              // Send 🤔 as thinking indicator — save messageId for later edit
+              const msgId = await currentAdapter.sendMessage(currentChatId, '🤔').catch(() => undefined)
+              thinkingMessageId = typeof msgId === 'string' ? msgId : null
             }
           },
           onStderr: (text) => {

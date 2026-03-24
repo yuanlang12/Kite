@@ -54,8 +54,8 @@ export class FeishuAdapter implements IMAdapter {
     this.messageHandler = handler
   }
 
-  async sendMessage(chatId: string, text: string): Promise<void> {
-    await this.client.im.message.create({
+  async sendMessage(chatId: string, text: string): Promise<string> {
+    const resp = await this.client.im.message.create({
       data: {
         receive_id: chatId,
         msg_type: 'text',
@@ -63,16 +63,35 @@ export class FeishuAdapter implements IMAdapter {
       },
       params: { receive_id_type: 'chat_id' },
     })
+    return resp.data?.message_id ?? ''
   }
 
-  async editMessage(_chatId: string, _messageId: string, _text: string): Promise<void> {
-    // Feishu message editing via message.update API
-    // TODO: implement if needed
+  async editMessage(_chatId: string, messageId: string, text: string): Promise<void> {
+    await this.client.im.message.update({
+      data: {
+        msg_type: 'text',
+        content: JSON.stringify({ text }),
+      },
+      path: { message_id: messageId },
+    })
   }
 
   async sendTyping(_chatId: string): Promise<void> {
     // Feishu doesn't have a native "typing" indicator
-    // Can send a temporary message or use custom status
+  }
+
+  private static readonly EMOJI_MAP: Record<string, string> = {
+    '👀': 'EYES',
+    '👍': 'THUMBSUP',
+    '🤔': 'THINKING',
+  }
+
+  async reactToMessage(_chatId: string, messageId: string, emoji: string): Promise<void> {
+    const emojiType = FeishuAdapter.EMOJI_MAP[emoji] ?? emoji
+    await this.client.im.messageReaction.create({
+      data: { reaction_type: { emoji_type: emojiType } },
+      path: { message_id: messageId },
+    }).catch(() => {})
   }
 
   async start(): Promise<void> {
@@ -104,6 +123,7 @@ export class FeishuAdapter implements IMAdapter {
           chatId: msg.chat_id ?? '',
           userId,
           text,
+          messageId: msg.message_id,
         }
         await this.messageHandler(incoming)
       },

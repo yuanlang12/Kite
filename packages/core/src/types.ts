@@ -67,6 +67,7 @@ export interface IncomingMessage {
   userId: string
   username?: string
   text: string
+  messageId?: string
   replyToMessageId?: string
 }
 
@@ -78,6 +79,15 @@ export interface IMAdapter {
   sendMessage(chatId: string, text: string): Promise<void | string>
   editMessage(chatId: string, messageId: string, text: string): Promise<void>
   sendTyping(chatId: string): Promise<void>
+  reactToMessage?(chatId: string, messageId: string, emoji: string): Promise<void>
+}
+
+// ─── Project routing ──────────────────────────────────────────────────────────
+
+export interface ProjectRoute {
+  alias: string
+  projectPath: string
+  sessionId: string | null
 }
 
 // ─── Bridge config ─────────────────────────────────────────────────────────────

@@ -61,6 +61,7 @@ export class TelegramAdapter implements IMAdapter {
         userId,
         username,
         text: ctx.message.text,
+        messageId: String(ctx.message.message_id),
       }
       await this.messageHandler(incoming)
     })
@@ -94,6 +95,12 @@ export class TelegramAdapter implements IMAdapter {
 
   async sendTyping(chatId: string): Promise<void> {
     await this.bot.api.sendChatAction(Number(chatId), 'typing')
+  }
+
+  async reactToMessage(chatId: string, messageId: string, emoji: string): Promise<void> {
+    await this.bot.api.setMessageReaction(Number(chatId), Number(messageId), [
+      { type: 'emoji', emoji: emoji as '👀' },
+    ]).catch(() => {})
   }
 
   async start(): Promise<void> {

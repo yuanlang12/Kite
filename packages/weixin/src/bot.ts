@@ -56,7 +56,7 @@ export class WeixinAdapter implements IMAdapter {
   }
 
   async editMessage(_chatId: string, _messageId: string, _text: string): Promise<void> {
-    // iLink API does not support editing sent messages
+    throw new Error('WeChat does not support editing messages')
   }
 
   async sendTyping(chatId: string): Promise<void> {

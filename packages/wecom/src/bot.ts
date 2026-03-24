@@ -87,7 +87,7 @@ export class WecomAdapter implements IMAdapter {
   }
 
   async editMessage(_chatId: string, _messageId: string, _text: string): Promise<void> {
-    // WeCom bot API does not support editing messages
+    throw new Error('WeCom does not support editing messages')
   }
 
   async sendTyping(_chatId: string): Promise<void> {
