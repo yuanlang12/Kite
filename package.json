@@ -9,12 +9,15 @@
   "scripts": {
     "dev": "bun run --cwd apps/cli dev",
     "build": "bun run build --filter='*'",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check",
+    "format": "biome check --write"
   },
   "bin": {
     "kite": "./apps/cli/src/index.ts"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
     "bun-types": "^1.3.11",
     "typescript": "^5.7.0"
   }

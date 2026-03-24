@@ -45,7 +45,7 @@ export interface SessionAssistantMessage {
   kind: 'assistant'
   sessionId: string
   uuid: string
-  text: string          // extracted plain text (tool uses stripped)
+  text: string // extracted plain text (tool uses stripped)
   raw: RawJSONLEntry
 }
 
@@ -62,7 +62,7 @@ export type SessionEvent = SessionAssistantMessage | SessionUserMessage
 // ─── IM Adapter interface ──────────────────────────────────────────────────────
 
 export interface IncomingMessage {
-  platform: string       // 'telegram' | 'feishu' | ...
+  platform: string // 'telegram' | 'feishu' | ...
   chatId: string
   userId: string
   username?: string
