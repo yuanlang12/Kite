@@ -1,8 +1,8 @@
-import { spawn, type ChildProcess } from 'node:child_process'
-import { watch as fsWatch, type FSWatcher } from 'node:fs'
+import { type ChildProcess, spawn } from 'node:child_process'
+import { type FSWatcher, watch as fsWatch } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join, basename } from 'node:path'
+import { basename, join } from 'node:path'
 
 export interface LocalModeOptions {
   sessionId: string | null
@@ -92,6 +92,7 @@ export async function runLocalMode(opts: LocalModeOptions): Promise<'switch' | '
       cwd: projectPath,
       stdio: 'inherit',
       env: process.env,
+      shell: process.platform === 'win32',
     })
 
     child.on('error', (err) => {
@@ -99,7 +100,12 @@ export async function runLocalMode(opts: LocalModeOptions): Promise<'switch' | '
       resolved = true
       cleanup()
       signal.removeEventListener('abort', onAbort)
-      console.error('[Kite] Claude process error:', err.message)
+      // Write directly to stderr — console may be muted by launcher
+      const hint =
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+          ? '\n  Hint: `claude` CLI not found in PATH. Install Claude Code first:\n  https://docs.claude.com/en/docs/claude-code/quickstart\n'
+          : ''
+      process.stderr.write(`[Kite] Failed to launch claude: ${err.message}${hint}\n`)
       resolve('exit')
     })
 

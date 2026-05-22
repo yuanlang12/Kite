@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { type ChildProcess, spawn } from 'node:child_process'
 
 export interface RemoteMessage {
   text: string
@@ -25,7 +25,16 @@ export interface RemoteModeOptions {
  * Returns 'switch' if aborted (user wants terminal back), 'exit' if no more messages.
  */
 export async function runRemoteMode(opts: RemoteModeOptions): Promise<'switch' | 'exit'> {
-  const { extraArgs, getNextMessage, onResponse, onThinking, onStderr, onTimeout, timeoutMs, signal } = opts
+  const {
+    extraArgs,
+    getNextMessage,
+    onResponse,
+    onThinking,
+    onStderr,
+    onTimeout,
+    timeoutMs,
+    signal,
+  } = opts
 
   while (!signal.aborted) {
     const msg = await getNextMessage()
@@ -74,13 +83,18 @@ async function executeClaudeCommand(opts: {
   timeoutMs?: number
   signal: AbortSignal
 }): Promise<string> {
-  const { sessionId, projectPath, message, extraArgs, onStderr, onTimeout, timeoutMs, signal } = opts
+  const { sessionId, projectPath, message, extraArgs, onStderr, onTimeout, timeoutMs, signal } =
+    opts
 
   const args = [
-    '-p', message,
-    '--resume', sessionId,
-    '--output-format', 'text',
-    '--permission-mode', 'auto',
+    '-p',
+    message,
+    '--resume',
+    sessionId,
+    '--output-format',
+    'text',
+    '--permission-mode',
+    'auto',
     ...(extraArgs ?? []),
   ]
 
@@ -113,6 +127,7 @@ async function executeClaudeCommand(opts: {
       cwd: projectPath,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: process.env,
+      shell: process.platform === 'win32',
     })
 
     let output = ''
